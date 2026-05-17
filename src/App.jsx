@@ -33,15 +33,23 @@ function StarCanvas() {
   const ref = useRef(null);
   useEffect(() => {
     const cvs = ref.current; if(!cvs) return;
-    const ctx = cvs.getContext('2d'); let id;
-    const resize = () => { cvs.width = window.innerWidth; cvs.height = window.innerHeight; };
-    resize(); window.addEventListener('resize', resize);
+    const ctx = cvs.getContext('2d'); let id, gradBg;
+    let tid;
+
+    const buildBg = () => {
+      cvs.width = window.innerWidth; cvs.height = window.innerHeight;
+      gradBg = ctx.createRadialGradient(cvs.width/2, cvs.height/3, 0, cvs.width/2, cvs.height/3, cvs.width*0.8);
+      gradBg.addColorStop(0,'rgba(6,14,30,1)'); gradBg.addColorStop(0.5,'rgba(4,8,20,1)'); gradBg.addColorStop(1,'rgba(2,3,8,1)');
+    };
+    buildBg();
+
+    const onResize = () => { clearTimeout(tid); tid = setTimeout(buildBg, 100); };
+    window.addEventListener('resize', onResize);
+
     const stars = Array.from({length:180}, () => ({ x:Math.random()*window.innerWidth, y:Math.random()*window.innerHeight, r:Math.random()*1.8+0.3, sp:Math.random()*0.12+0.02, ph:Math.random()*6.28 }));
+
     const draw = () => {
-      ctx.clearRect(0,0,cvs.width,cvs.height);
-      const grad = ctx.createRadialGradient(cvs.width/2, cvs.height/3, 0, cvs.width/2, cvs.height/3, cvs.width*0.8);
-      grad.addColorStop(0,'rgba(6,14,30,1)'); grad.addColorStop(0.5,'rgba(4,8,20,1)'); grad.addColorStop(1,'rgba(2,3,8,1)');
-      ctx.fillStyle=grad; ctx.fillRect(0,0,cvs.width,cvs.height);
+      ctx.fillStyle=gradBg; ctx.fillRect(0,0,cvs.width,cvs.height);
       for(const st of stars){ st.y+=st.sp; if(st.y>cvs.height+10){st.y=-10; st.x=Math.random()*cvs.width;} st.ph+=0.01;
         const a=0.3+Math.sin(st.ph)*0.2; ctx.beginPath(); ctx.arc(st.x,st.y,st.r,0,6.28); ctx.fillStyle=`rgba(200,210,230,${Math.max(0,Math.min(1,a))})`; ctx.fill();
         if(st.r>1){ctx.beginPath(); ctx.arc(st.x,st.y,st.r*2.5,0,6.28); ctx.fillStyle=`rgba(180,200,240,${a*0.06})`; ctx.fill();}
@@ -49,7 +57,7 @@ function StarCanvas() {
       id=requestAnimationFrame(draw);
     };
     draw();
-    return () => { cancelAnimationFrame(id); window.removeEventListener('resize',resize); };
+    return () => { cancelAnimationFrame(id); window.removeEventListener('resize',onResize); clearTimeout(tid); };
   },[]);
   return <canvas ref={ref} style={{position:'fixed',inset:0,zIndex:0,pointerEvents:'none'}} />;
 }
@@ -61,9 +69,13 @@ function Particles({ active }) {
   const ref = useRef(null);
   useEffect(() => {
     const cvs = ref.current; if(!cvs) return;
-    const ctx = cvs.getContext('2d'); let id;
-    const resize = () => { cvs.width = window.innerWidth; cvs.height = window.innerHeight; };
-    resize(); window.addEventListener('resize', resize);
+    const ctx = cvs.getContext('2d'); let id, tid;
+    const resize = () => {
+      clearTimeout(tid);
+      tid = setTimeout(() => { cvs.width = window.innerWidth; cvs.height = window.innerHeight; }, 100);
+    };
+    setTimeout(() => { cvs.width = window.innerWidth; cvs.height = window.innerHeight; }, 0);
+    window.addEventListener('resize', resize);
     const pts = Array.from({length: active?55:12}, () => ({ x:Math.random()*window.innerWidth, y:Math.random()*window.innerHeight, r:Math.random()*1.4+0.3, vx:(Math.random()-0.5)*0.25, vy:-Math.random()*0.5-0.08, life:Math.random(), gold:Math.random()>0.65 }));
     const draw = () => {
       ctx.clearRect(0,0,cvs.width,cvs.height);
@@ -73,7 +85,7 @@ function Particles({ active }) {
       id=requestAnimationFrame(draw);
     };
     draw();
-    return () => { cancelAnimationFrame(id); window.removeEventListener('resize',resize); };
+    return () => { cancelAnimationFrame(id); window.removeEventListener('resize',resize); clearTimeout(tid); };
   },[active]);
   return <canvas ref={ref} style={{position:'fixed',inset:0,zIndex:10,pointerEvents:'none'}} />;
 }
@@ -97,6 +109,7 @@ export default function App() {
   const [err, setErr] = useState(null);
   const [exp, setExp] = useState(null);
   const [copied, setCopied] = useState(false);
+  const figRef = useRef([]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -111,7 +124,7 @@ export default function App() {
     const safety = setTimeout(() => {
       clearInterval(timer);
       setProg(100);
-      if (!figs.length) {
+      if (!figRef.current.length) {
         setErr('查询超时，已使用本地数据库结果');
         setRpt(analyzePersonality([]));
       }
@@ -123,14 +136,14 @@ export default function App() {
       clearTimeout(safety);
       clearInterval(timer);
       setProg(100);
-      setFigs(data);
+      setFigs(data); figRef.current = data;
       setRpt(analyzePersonality(data));
     } catch(ex) {
       clearTimeout(safety);
       clearInterval(timer);
       setProg(100);
       setErr(ex.message);
-      setFigs([]);
+      setFigs([]); figRef.current = [];
       setRpt(analyzePersonality([]));
     }
     setTimeout(() => setStage('result'), 800);
