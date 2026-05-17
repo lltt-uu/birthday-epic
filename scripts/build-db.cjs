@@ -7,7 +7,8 @@ const F=[
 [1,6,1412,'圣女贞德','Joan of Arc','','百年战争','法国','欧洲文明','军事领袖','法国民族英雄，17岁带领法军逆转百年战争。','奥尔良解围，鼓舞法国民族意识。','英雄,信仰,圣女,民族','天主教',97,'western','Q7226'],
 [1,7,1502,'格里高利十三世','Pope Gregory XIII','','文艺复兴','意大利','欧洲文明','教皇','推行格里高利历，现代公历以他命名。','改革历法，推行格里高利历。','历法,教皇,改革,天文','天主教',78,'western','Q83028'],
 [1,9,1908,'波伏娃','Simone de Beauvoir','','现代','法国','欧洲文明','哲学家·作家','《第二性》作者，女性主义哲学奠基人。','著《第二性》，为全球女性主义运动提供理论武器。','女性,哲学,存在,自由','存在主义',92,'western','Q7197'],
-[1,10,1936,'霍金','Stephen Hawking','','现代','英国','西方文明','物理学家','身困轮椅心游宇宙，《时间简史》让科学走向大众。','提出霍金辐射，科普著作销量过千万。','黑洞,宇宙,科学,毅力','科学',97,'western','Q17714'],
+[1,8,1942,'霍金','Stephen Hawking','','现代','英国','西方文明','物理学家','身困轮椅心游宇宙，《时间简史》让科学走向大众。','提出霍金辐射，黑洞并非完全黑暗。科普销量过千万。','黑洞,宇宙,科学,毅力','科学',97,'western','Q17714'],
+[1,10,1903,'芭芭拉·赫普沃斯','Barbara Hepworth','','现代','英国','欧洲文明','雕塑家','二十世纪最伟大的抽象雕塑家之一。用空洞定义了现代雕塑的空间感。','英国现代主义雕塑的先驱，其大型青铜雕塑在世界各地展出。','雕塑,抽象,现代,女性','现代主义',88,'western','Q234109'],
 [1,11,1755,'汉密尔顿','Alexander Hamilton','','美国建国','美国','西方文明','政治家','美国开国元勋，第一任财政部长。','建立美国第一银行与铸币局。','建国,金融,宪法,联邦','联邦主义',90,'western','Q214903'],
 [1,12,1876,'杰克·伦敦','Jack London','','近代','美国','西方文明','作家','《野性的呼唤》作者，美国冒险文学代表。','以粗犷笔触描写荒野与生存。','冒险,荒野,文学,生存','自然主义',86,'western','Q45765'],
 [1,13,1878,'陈嘉庚','Chen Jiageng','近代','近代','中国','华夏文明','教育家·企业家','华侨旗帜，倾资创办厦门大学与集美学村。','创办厦大和集美学校，抗战组织南洋华侨救国。','教育,爱国,华侨,慈善','儒家',90,'chinese','Q713373'],
@@ -412,8 +413,11 @@ for(const f of F){
 console.log('Unique figures:',uniq.length);
 
 let out='const EXTRA_FIGURES = [\n';
-for(const[f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13,f14,f15,f16,f17]of uniq){
-  out+=`  { name:'${f3}', nameEn:'${f4}', birth:{m:${f0},d:${f1},y:${f2}}, death:{y:null}, dynasty:'${f5}', era:'${f6}', nationality:'${f7}', civilization:'${f8}', occupation:'${f9}', desc:'${f10}', achievements:'${f11}', tags:[${f12.split(',').map(t=>`'${t.trim()}'`).join(',')}], ideology:'${f13}', legend:${f14}, visual:'${f15}', wiki:'https://en.wikipedia.org/wiki/${f17}', wd:'${f17}' },\n`;
+for(const f of uniq){
+  const wikiId = f[16] || '';
+  const tags = f[12].split(',').map(t=>`'${t.trim()}'`).join(',');
+  const deathYear = f[2] < 0 ? 'null' : 'null'; // unknown for most
+  out+=`  { name:'${f[3]}', nameEn:'${f[4]}', birth:{m:${f[0]},d:${f[1]},y:${f[2]}}, death:{y:${deathYear}}, dynasty:'${f[5]}', era:'${f[6]}', nationality:'${f[7]}', civilization:'${f[8]}', occupation:'${f[9]}', desc:'${f[10]}', achievements:'${f[11]}', tags:[${tags}], ideology:'${f[13]}', legend:${f[14]}, visual:'${f[15]}', wiki:'https://en.wikipedia.org/wiki/${wikiId}', wd:'${wikiId}' },\n`;
 }
 out+='];\n\nexport default EXTRA_FIGURES;\n';
 
