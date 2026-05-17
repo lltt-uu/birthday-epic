@@ -65,6 +65,7 @@ export async function fetchBornOnDate(month, day) {
   }
 
   // L4: zh.wikipedia.org — verified on-this-day births
+  // Parallel summary fetches with concurrency cap, so 50 items finish in ~4 rounds instead of 50 serial
   try {
     const url = `${ZH_WIKI}/feed/onthisday/births/${month}/${day}`;
     const res = await fetchWithTimeout(url);
@@ -72,28 +73,42 @@ export async function fetchBornOnDate(month, day) {
       const data = await res.json();
       const existing = hasName();
       const wikiItems = (data.births || [])
-        .filter(b => b.year != null && b.text)
-        .slice(0, 30);
+        .filter(b => b.year != null && b.text);
 
-      for (const item of wikiItems) {
+      // Parallel summary fetch helper with concurrency limit
+      async function fetchSummaries(items, concurrency = 8) {
+        const fetched = new Array(items.length).fill(null);
+        let idx = 0;
+        async function worker() {
+          while (idx < items.length) {
+            const i = idx++;
+            const item = items[i];
+            const title = item.pages?.[0]?.title;
+            if (!title) continue;
+            try {
+              const detail = await fetchWithTimeout(
+                `${ZH_WIKI}/page/summary/${encodeURIComponent(title)}`,
+                1500
+              ).then(r => r.ok ? r.json() : null);
+              if (detail) fetched[i] = detail;
+            } catch { /* skip */ }
+          }
+        }
+        await Promise.allSettled(Array.from({ length: concurrency }, () => worker()));
+        return fetched;
+      }
+
+      const summaries = await fetchSummaries(wikiItems);
+
+      for (let i = 0; i < wikiItems.length; i++) {
+        const item = wikiItems[i];
         const title = item.pages?.[0]?.title;
         const wikiUrl = item.pages?.[0]?.content_urls?.desktop?.page || '';
         if (existing.has(item.text)) continue;
 
-        // Quick summary fetch (non-blocking if fails)
-        let desc = '', thumbnail = null;
-        if (title) {
-          try {
-            const detail = await fetchWithTimeout(
-              `${ZH_WIKI}/page/summary/${encodeURIComponent(title)}`,
-              2000
-            ).then(r => r.ok ? r.json() : null);
-            if (detail) {
-              desc = detail.extract || '';
-              thumbnail = detail.thumbnail?.source || null;
-            }
-          } catch { /* skip summary */ }
-        }
+        const detail = summaries[i];
+        const desc = detail?.extract || '';
+        const thumbnail = detail?.thumbnail?.source || null;
 
         results.push({
           name: item.text, nameEn: '', year: String(item.year),

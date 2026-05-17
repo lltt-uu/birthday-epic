@@ -129,7 +129,7 @@ export default function App() {
         setRpt(analyzePersonality([]));
       }
       setStage('result');
-    }, 10000);
+    }, 12000);
 
     try {
       const data = await fetchBornOnDate(m,d);
@@ -266,7 +266,7 @@ export default function App() {
             <p style={{fontSize:11,color:'rgba(212,168,83,0.3)',letterSpacing:5,textAlign:'center',marginBottom:36,fontFamily:'Consolas,monospace'}}>HISTORICAL TIMELINE</p>
             <div style={s.timelineLine} />
 
-            {safe.slice(0,20).map((f,i) => {
+            {safe.slice(0,50).map((f,i) => {
               const isLeft = wide ? i%2===0 : true;
               const isOpen = exp===i;
               return (
