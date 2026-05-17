@@ -129,7 +129,7 @@ export default function App() {
         setRpt(analyzePersonality([]));
       }
       setStage('result');
-    }, 8000);
+    }, 10000);
 
     try {
       const data = await fetchBornOnDate(m,d);

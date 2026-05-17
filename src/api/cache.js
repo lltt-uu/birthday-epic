@@ -18,12 +18,15 @@ async function ensureLoaded() {
 
   // 1. Load pre-built static cache
   try {
-    const res = await fetch(STATIC_CACHE_URL);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 3000);
+    const res = await fetch(STATIC_CACHE_URL, { signal: ctrl.signal });
+    clearTimeout(t);
     if (res.ok) {
       staticCache = await res.json();
       console.log(`[Cache] Static: ${Object.keys(staticCache).length} dates loaded`);
     }
-  } catch { /* file doesn't exist yet */ }
+  } catch { /* file doesn't exist yet, or timed out */ }
 
   // 2. Load localStorage cache
   try {

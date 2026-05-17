@@ -1,24 +1,23 @@
 /**
  * CBDB + Wikidata Hybrid — Chinese Historical Figure Enrichment
  *
- * CBDB doesn't have a public REST API (only HTML web search),
- * so we use Wikidata's structured data as the primary enrichment source.
- * Wikidata has millions of Chinese historical figures with birth dates,
- * dynasty tags, and occupation classifications.
- *
- * This module:
- * 1. Queries Wikidata for Chinese figures born on a specific date
- * 2. Enriches with dynasty/era/tags
- * 3. Caches results locally
- * 4. Merges with local database
+ * Wikidata SPARQL queries with per-request timeouts.
+ * Caches results locally to avoid redundant slow queries.
  */
 
 const WIKIDATA_SPARQL = 'https://query.wikidata.org/sparql?format=json&query=';
-const WIKIDATA_API = 'https://www.wikidata.org/w/api.php';
+const FETCH_TIMEOUT = 4000;
 
-/** Cached queries — avoid redundant API calls */
+function fetchWithTimeout(url, timeout = FETCH_TIMEOUT) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeout);
+  return fetch(url, { headers: { 'Accept': 'application/json' }, signal: ctrl.signal })
+    .finally(() => clearTimeout(timer));
+}
+
+/** In-memory cache with 1-hour TTL */
 const cache = new Map();
-const CACHE_TTL = 3600000; // 1 hour
+const CACHE_TTL = 3600000;
 
 function cacheKey(month, day) {
   return `birth_${month}_${day}`;
@@ -37,10 +36,6 @@ function setCache(key, data) {
 
 /**
  * Query Wikidata for Chinese historical figures born on month/day.
- * Uses SPARQL to find people with:
- * - Country of citizenship: various Chinese dynasties (Q148, Q8733, etc.)
- * - OR born in China / ancient China
- * - Has birth date matching month/day
  */
 export async function queryChineseBirthdays(month, day) {
   const key = cacheKey(month, day);
@@ -50,23 +45,20 @@ export async function queryChineseBirthdays(month, day) {
   const monthStr = String(month).padStart(2, '0');
   const dayStr = String(day).padStart(2, '0');
 
-  // Wikidata SPARQL: find people with Chinese citizenship or Chinese birth place,
-  // who have a known birth date matching the given month/day
   const query = `
     SELECT DISTINCT ?person ?personLabel ?birthDate ?occupationLabel ?dynastyLabel ?desc WHERE {
       ?person wdt:P31 wd:Q5;
               wdt:P569 ?birthDate.
       FILTER(SUBSTR(STR(?birthDate), 6, 5) = "${monthStr}-${dayStr}")
 
-      # Chinese citizenship OR birth place in China OR Chinese civilization tag
-      { ?person wdt:P27 wd:Q148. }           # People's Republic of China
-      UNION { ?person wdt:P27 wd:Q8733. }     # ancient China / dynastic China
+      { ?person wdt:P27 wd:Q148. }
+      UNION { ?person wdt:P27 wd:Q8733. }
       UNION { ?person wdt:P19 ?birthPlace.
-              ?birthPlace wdt:P17 wd:Q148. }  # born in modern China
+              ?birthPlace wdt:P17 wd:Q148. }
       UNION { ?person wdt:P19 ?birthPlace.
-              ?birthPlace wdt:P17 wd:Q8733. } # born in ancient China
+              ?birthPlace wdt:P17 wd:Q8733. }
       UNION { ?person wdt:P172 ?ethnicity.
-              ?ethnicity wdt:P361 wd:Q19187. } # part of Han Chinese ethnic group
+              ?ethnicity wdt:P361 wd:Q19187. }
 
       OPTIONAL { ?person wdt:P106 ?occupation. }
       OPTIONAL { ?person wdt:P27 ?dynasty. }
@@ -84,7 +76,7 @@ export async function queryChineseBirthdays(month, day) {
 
   try {
     const url = WIKIDATA_SPARQL + encodeURIComponent(query);
-    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const res = await fetchWithTimeout(url);
     if (!res.ok) throw new Error(`SPARQL ${res.status}`);
 
     const data = await res.json();
@@ -117,9 +109,6 @@ export async function queryChineseBirthdays(month, day) {
   }
 }
 
-/**
- * Guess Chinese era from birth year.
- */
 function guessChineseEra(yearStr) {
   const y = parseInt(yearStr);
   if (isNaN(y)) return '';
@@ -143,9 +132,6 @@ function guessChineseEra(yearStr) {
   return '现代';
 }
 
-/**
- * Query Wikidata mixed (all nationalities) — good for balancing results.
- */
 export async function queryAllBirthdays(month, day) {
   const key = `all_${month}_${day}`;
   const cached = getCached(key);
@@ -169,7 +155,7 @@ export async function queryAllBirthdays(month, day) {
 
   try {
     const url = WIKIDATA_SPARQL + encodeURIComponent(query);
-    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const res = await fetchWithTimeout(url);
     if (!res.ok) throw new Error(`SPARQL ${res.status}`);
 
     const data = await res.json();
@@ -213,21 +199,6 @@ export async function queryAllBirthdays(month, day) {
   }
 }
 
-/**
- * Get WikiData person details by ID.
- */
-export async function getPersonDetail(wikidataId) {
-  const url = `${WIKIDATA_API}?action=wbgetentities&ids=${wikidataId}&props=labels|descriptions|claims&languages=zh|en&format=json&origin=*`;
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-    return data?.entities?.[wikidataId] || null;
-  } catch { return null; }
-}
-
-/**
- * Export cache for persistence (localStorage in browser).
- */
 export function exportCache() {
   const obj = {};
   for (const [k, v] of cache) {
